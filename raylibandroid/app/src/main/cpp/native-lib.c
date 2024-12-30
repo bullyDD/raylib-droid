@@ -4,6 +4,7 @@
 #define PLAYER_HOR_SPEED 200.0f
 #define HOR_SPACING 10
 #define VER_SPACING 10
+#define MAX_TOUCH_POINTS 10
 
 /* LOCALES DATA STRUCT */
 
@@ -33,7 +34,7 @@ typedef struct PadControl {
 /* LOCALES HELPERS FUNCTIONS */
 void CreateGameController (PadControl* pd, int width, int height);
 void DrawPadController(const PadControl* pd);
-void UpdatePadControllerState(PadControl* pd, TouchPoint* touch);
+void UpdatePadControllerState(PadControl* pd, Vector2* touch);
 void UpdatePlayer(Player *player, PadControl *pd, float dt);
 void UpdateCameraCenter(Camera2D* camera, Player *player, float dt, int width, int height);
 
@@ -54,15 +55,16 @@ int main(void) {
 
     // GAME OBJECTS
     // ------------
+    Vector2 touchPositions[MAX_TOUCH_POINTS] = {0};
 
     // Player object
     Player player = {0};
 
     player.position = (Vector2){(float)width/2.0f, (float)height/2.0f};
-    player.rect = (Rectangle){(float)width/2.0f - 50,
-                              (float)height/2.0f - 50,
-                              100,
-                              100};
+    player.rect = (Rectangle){(float)width/2.0f - 25,
+                              (float)height/2.0f - 25,
+                              50,
+                              50};
     player.speed = 0.0f;
 
     // Camera 2D object
@@ -74,11 +76,8 @@ int main(void) {
     camera.zoom = 1.0f;
 
     // PadController object
-    PadControl pd = {0};;
+    PadControl pd = {0};
     CreateGameController(&pd, width, height);
-
-    // Touches on screen
-    TouchPoint t1 = {0};
 
     while(!WindowShouldClose()) {
 
@@ -86,53 +85,35 @@ int main(void) {
         //-------------
 
         // How many times user pressed the screen
-        int touchCount = GetTouchPointCount();
+        int tCount = GetTouchPointCount();
 
-        // Zero touch on screen
-        /*if (touchCount == 0) {
-            pd.leftKey.isPressed    = false;
-            pd.upKey.isPressed      = false;
-            pd.rightKey.isPressed   = false;
-            pd.downKey.isPressed    = false;
+        // Clamp the set points available
+        if(tCount > MAX_TOUCH_POINTS) {tCount = MAX_TOUCH_POINTS;}
+
+        // Get touch points positions
+        for (int i = 0; i < tCount; ++i) {
+            touchPositions[i] = GetTouchPosition(i);
         }
-        // Pad control for player movement
-        else if (touchCount == 1) {
-
-            // Get the touch position for movement
-
-            // GetTouchPointId return the touch point identifier for a given index
-            t1.x = GetTouchPosition(GetTouchPointId(touchCount)).x;
-            t1.y = GetTouchPosition(GetTouchPointId(touchCount)).y;
-
-            // Check for collision with LEFT_KEY and update player position
-            if ( ((t1.x >= pd.leftKey.shape.x) && (t1.x <= pd.leftKey.shape.width) ) ||
-                 ((t1.y >= pd.leftKey.shape.y) && (t1.y <= pd.leftKey.shape.height))  ) {
-                pd.leftKey.isPressed = true;
-            }
-            else {
-                pd.leftKey.isPressed = false;
-            }
-        }
-        // Pad control for player action
-        else if(true) {
-
-        }*/
-        UpdatePadControllerState(&pd, &t1);
 
         // UPDATE
         //--------
+
         float deltaTime = GetFrameTime();
 
         int w = GetScreenWidth();
         int h = GetScreenHeight();
 
-        // Update player
-        UpdatePlayer(&player, &pd, deltaTime);
+        // Update player and pad controller state
 
+        if(tCount > 0) {
+            for (int i = 0; i < tCount; i++) {
+                UpdatePadControllerState(&pd, &touchPositions[i]);
+                UpdatePlayer(&player, &pd, deltaTime);
+            }
+        }
 
         // Draw
         //-----
-
         BeginDrawing();
 
             ClearBackground(RAYWHITE);
@@ -149,16 +130,23 @@ int main(void) {
                                  RED);
             EndMode2D();
 
-            DrawText(TextFormat("Touch X = %.2f\nTouch Y = %.2f\nTouch point = %d\n", t1.x, t1.y, touchCount),
-                     10,
-                     height/2,
-                     20,
-                     BLACK);
-            DrawText(TextFormat("Key\nX = %.2f\nY = %.2f\nwidth = %.2f\nheight = %.2f\n", pd.leftKey.shape.x, pd.leftKey.shape.y, pd.leftKey.shape.width, pd.leftKey.shape.height),
+            DrawText(TextFormat("Touch count = %d\n",tCount),
                      10,
                      height/4,
                      20,
                      BLACK);
+
+            if (tCount > 0) {
+                for (int i = 0; i < tCount; i++) {
+                    DrawText(TextFormat("Touch %d :\n X = %.2f\n Y = %.2f\n",
+                                        i,
+                                        touchPositions[i].x,
+                                        touchPositions[i].y),
+                             10,
+                             height/2,
+                             20, BLACK);
+                }
+            }
 
         EndDrawing();
     }
@@ -174,19 +162,19 @@ int main(void) {
 
 void CreateGameController (PadControl *pd, int width, int height) {
     // Create left key
-    pd->leftKey.shape = (Rectangle) {50, (float)height * 3.0f/4.0f, 100.0f, 100.0f};
+    pd->leftKey.shape = (Rectangle) {100, (float)height * 3.0f/4.0f, 100.0f, 100.0f};
     pd->leftKey.isPressed = false;
 
     // Create up key
-    pd->upKey.shape = (Rectangle){0};
+    pd->upKey.shape = (Rectangle){222, (float)height /2.0f + 78.0f, 100.0f, 100.0f };
     pd->upKey.isPressed = false;
 
     // Create right key
-    pd->rightKey.shape = (Rectangle){0};
+    pd->rightKey.shape = (Rectangle){322, (float)height * 3.0f/4.0f, 100.0f, 100.0f};
     pd->rightKey.isPressed = false;
 
     // Create down key
-    pd->downKey.shape = (Rectangle){0};
+    pd->downKey.shape = (Rectangle){222, (float)height * 3.0f/4.0f + 100.0f, 100.0f, 100.0f};
     pd->downKey.isPressed = false;
 }
 
@@ -197,46 +185,85 @@ void DrawPadController(const PadControl *pd) {
              pd->leftKey.shape.height,
             0.0f,
             BLACK);
+    // Draw the up key
+    DrawCube((Vector3){pd->upKey.shape.x, pd->upKey.shape.y, 0.0f},
+             pd->upKey.shape.width,
+             pd->upKey.shape.height,
+             0.0f,
+             BLACK);
+    // Draw right key
+    DrawCube((Vector3){pd->rightKey.shape.x, pd->rightKey.shape.y, 0.0f},
+             pd->rightKey.shape.width,
+             pd->rightKey.shape.height,
+             0.0f,
+             BLACK);
+    // Draw down key
+    DrawCube((Vector3){pd->downKey.shape.x, pd->downKey.shape.y, 0.0f},
+             pd->downKey.shape.width,
+             pd->downKey.shape.height,
+             0.0f,
+             BLACK);
 }
 
-void UpdatePadControllerState(PadControl* pd, TouchPoint* touch) {
-    // How many times user pressed the screen
-    int touchIndex = GetTouchPointCount();
-
-    // Zero touch on screen
-    if (touchIndex == 0) {
-        pd->leftKey.isPressed    = false;
-        pd->upKey.isPressed      = false;
-        pd->rightKey.isPressed   = false;
-        pd->downKey.isPressed    = false;
+void UpdatePadControllerState(PadControl* pd, Vector2* touch) {
+    // When left key is pressed
+    if (
+        ((touch->x >= pd->leftKey.shape.x) && (touch->x <= (pd->leftKey.shape.x + pd->leftKey.shape.width)))
+        &&
+        ((touch->y >= pd->leftKey.shape.y) && (touch->y <= (pd->leftKey.shape.y + pd->leftKey.shape.height)))
+        )
+    {
+        pd->leftKey.isPressed =  true;
     }
-        // Pad control for player movement
-    if (touchIndex == 1) {
-
-        // Get the touch position for movement
-
-        // GetTouchPointId return the touch point identifier for a given index
-        touch->x = GetTouchPosition(GetTouchPointId(touchIndex)).x;
-        touch->y = GetTouchPosition(GetTouchPointId(touchIndex)).y;
-
-        // Check for collision with LEFT_KEY and update player position
-        if ( ((touch->x >= pd->leftKey.shape.x) && (touch->x <= pd->leftKey.shape.width) ) ||
-             ((touch->y >= pd->leftKey.shape.y) && (touch->y <= pd->leftKey.shape.height))  ) {
-            pd->leftKey.isPressed = true;
-        }
-        else {
-            pd->leftKey.isPressed = false;
-        }
+    else {
+        pd->leftKey.isPressed = false;
     }
-    // Pad control for player action
+
+    // when right key is pressed
+    if (
+            ((touch->x >= pd->rightKey.shape.x) && (touch->x <= (pd->rightKey.shape.x + pd->rightKey.shape.width)))
+            &&
+            ((touch->y >= pd->rightKey.shape.y) && (touch->y <= (pd->rightKey.shape.y + pd->rightKey.shape.height)))
+        )
+    {
+        pd->rightKey.isPressed = true;
+    }
+    else {
+        pd->rightKey.isPressed = false;
+    }
+
+    // when up key is pressed
+    if (
+            ((touch->x >= pd->upKey.shape.x) && (touch->x <= (pd->upKey.shape.x + pd->upKey.shape.width)))
+            &&
+            ((touch->y >= pd->upKey.shape.y) && (touch->y <= (pd->upKey.shape.y + pd->upKey.shape.height)))
+        )
+    {
+        pd->upKey.isPressed = true;
+    }
+    else {
+        pd->upKey.isPressed = false;
+    }
+
+    // when down key is pressed
+    if (
+            ((touch->x >= pd->downKey.shape.x) && (touch->x <= (pd->downKey.shape.x + pd->downKey.shape.width)))
+            &&
+            ((touch->y >= pd->downKey.shape.y) && (touch->y <= (pd->downKey.shape.y + pd->downKey.shape.height)))
+        )
+    {
+        pd->downKey.isPressed = true;
+    }
+    else {
+        pd->downKey.isPressed = false;
+    }
 }
 
 void UpdatePlayer(Player *player, PadControl *pd, float dt) {
-
-    if(pd->leftKey.isPressed) {
-        player->position.x -= PLAYER_HOR_SPEED * dt;
-    }
-
+    if (pd->leftKey.isPressed) {player->position.x -= PLAYER_HOR_SPEED * dt;}
+    if (pd->rightKey.isPressed) {player->position.x += PLAYER_HOR_SPEED * dt;}
+    if (pd->upKey.isPressed) {player->position.y -= PLAYER_HOR_SPEED * dt;}
+    if (pd->downKey.isPressed) {player->position.y += PLAYER_HOR_SPEED * dt;}
 }
 
 void UpdateCameraCenter(Camera2D* camera, Player *player, float dt, int width, int height) {
